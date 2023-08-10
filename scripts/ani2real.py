@@ -5,7 +5,8 @@ from pathlib import Path
 from PIL import Image
 
 import modules.scripts as scripts
-from modules import shared, sd_models
+from modules import shared, sd_models, ui
+from modules.ui_components import ToolButton
 from modules.processing import process_images, StableDiffusionProcessing, StableDiffusionProcessingImg2Img, Processed
 from modules.ui import create_refresh_button
 from modules.paths import models_path
@@ -93,6 +94,21 @@ class Ani2Real(scripts.Script):
                     placeholder="Anime negative prompt"
                     + "\nIf blank, the main prompt is used."
                 )
+            with gr.Row():
+                styles = gr.Dropdown(label="Styles", choices=[k for k, v in shared.prompt_styles.styles.items()], value=[], multiselect=True)
+                apply_button = ToolButton(value=ui.apply_style_symbol, elem_id="apply_ani2real_styles")
+
+                def apply_styles(prompt, negative_prompt, styles):
+                    prompt = shared.prompt_styles.apply_styles_to_prompt(prompt, styles)
+                    negative_prompt = shared.prompt_styles.apply_negative_styles_to_prompt(negative_prompt, styles)
+                    return [gr.Textbox.update(value=prompt), gr.Textbox.update(value=negative_prompt), gr.Dropdown.update(value=[])]
+
+                apply_button.click(
+                    fn=apply_styles,
+                    inputs=[prompt, negative_prompt, styles],
+                    outputs=[prompt, negative_prompt, styles],
+                )
+                create_refresh_button(styles, shared.prompt_styles.reload, lambda: {"choices": [k for k, v in shared.prompt_styles.styles.items()]}, "refresh_ani2real_styles")
             with gr.Row():
                 weight = gr.Slider(
                     label=f"Control Weight",
