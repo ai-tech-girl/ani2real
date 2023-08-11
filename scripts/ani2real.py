@@ -224,6 +224,16 @@ class Ani2Real(scripts.Script):
         if len(negative_prompt) > 0:
             p.negative_prompt = negative_prompt
 
+        # Disable HR
+        if isinstance(p, StableDiffusionProcessingTxt2Img):
+            p.enable_hr = False
+        elif isinstance(p, StableDiffusionProcessingImg2Img):
+            p.resize_mode = 0
+            p.width = p.init_images[0].width
+            p.height = p.init_images[0].height
+        else:
+            raise RuntimeError("Unsupport processing type")
+
     def process_batch(self,
             p: StableDiffusionProcessing,
             enabled: bool,
@@ -234,16 +244,6 @@ class Ani2Real(scripts.Script):
 
         if not enabled:
             return
-
-        # Disable HR
-        if isinstance(p, StableDiffusionProcessingTxt2Img):
-            p.enable_hr = False
-        elif isinstance(p, StableDiffusionProcessingImg2Img):
-            p.resize_mode = 0
-            p.width = p.init_images[p.iteration].width
-            p.height = p.init_images[p.iteration].height
-        else:
-            raise RuntimeError("Unsupport processing type")
 
         load_model(model_name)
 
