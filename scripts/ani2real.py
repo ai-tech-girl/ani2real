@@ -1,13 +1,14 @@
 import gradio as gr
-from copy import copy, deepcopy
+from copy import copy
 import importlib
 from pathlib import Path
 from PIL import Image
+import numpy as np
 
 import modules.scripts as scripts
 from modules import shared, sd_models, ui
 from modules.ui_components import ToolButton
-from modules.processing import process_images, StableDiffusionProcessing, StableDiffusionProcessingImg2Img, Processed
+from modules.processing import process_images, StableDiffusionProcessing, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img, Processed
 from modules.ui import create_refresh_button
 from modules.paths import models_path
 from modules.shared import opts
@@ -153,81 +154,45 @@ class Ani2Real(scripts.Script):
 
         return seed, subseed
 
-    def script_filter(self, p):
-        script_runner = copy(p.scripts)
-        script_args = deepcopy(p.script_args)
-        self.disable_controlnet_units(script_args)
-        return script_runner, script_args
-
-    def disable_controlnet_units(self, script_args):
-        for obj in script_args:
-            if "controlnet" in obj.__class__.__name__.lower():
-                if hasattr(obj, "enabled"):
-                    obj.enabled = False
-                if hasattr(obj, "input_mode"):
-                    obj.input_mode = getattr(obj.input_mode, "SIMPLE", "simple")
-
-            elif isinstance(obj, dict) and "module" in obj:
-                obj["enabled"] = False
-
-    def get_tile_i2i(self, p: StableDiffusionProcessing, image: Image):
+    def get_tile_processing(self, p: StableDiffusionProcessing, image: Image, weight, guidance_start, guidance_end):
+        p._ani2real_idx = getattr(p, "_ani2real_idx", -1) + 1
         seed, subseed = self.get_seed(p, p._ani2real_idx)
+        tile_processing = copy(p._ani2real_origin_processing)
+        tile_processing._disable_ani2real = True
+        tile_processing.seed = seed
+        tile_processing.subseed = subseed
+        tile_processing.batch_size = 1
+        tile_processing.n_iter = 1
+        tile_processing.do_not_save_samples = True
+        tile_processing.do_not_save_grid = True
+        tile_processing.cached_c = [None, None]
+        tile_processing.cached_uc = [None, None]
 
-        i2i = StableDiffusionProcessingImg2Img(
-            init_images=[image],
-            resize_mode=0,
-            denoising_strength=0.75,
-            mask=None,
-            mask_blur=None,
-            sd_model=p.sd_model,
-            outpath_samples=p.outpath_samples,
-            outpath_grids=p.outpath_grids,
-            prompt=p._ani2real_original_prompt,
-            negative_prompt=p._ani2real_original_negative_prompt,
-            styles=p.styles,
-            seed=seed,
-            subseed=subseed,
-            subseed_strength=p.subseed_strength,
-            seed_resize_from_h=p.seed_resize_from_h,
-            seed_resize_from_w=p.seed_resize_from_w,
-            sampler_name=p.sampler_name,
-            batch_size=1,
-            n_iter=1,
-            steps=p.steps,
-            cfg_scale=p.cfg_scale,
-            width=image.width,
-            height=image.height,
-            restore_faces=p.restore_faces,
-            tiling=p.tiling,
-            extra_generation_params=p.extra_generation_params,
-            override_settings=p.override_settings,
-            do_not_save_samples=True,
-            do_not_save_grid=True,
-        )
+        if isinstance(tile_processing, StableDiffusionProcessingTxt2Img):
+            self.enable_cnet_tile(tile_processing, weight, guidance_start, guidance_end, image)
+        elif isinstance(tile_processing, StableDiffusionProcessingImg2Img):
+            tile_processing.init_images = [image]
+            self.enable_cnet_tile(tile_processing, weight, guidance_start, guidance_end)
+        else:
+            raise RuntimeError("Unsupport processing type")
+        return tile_processing
 
-        i2i._disable_ani2real = True
-        i2i.cached_c = [None, None]
-        i2i.cached_uc = [None, None]
-        i2i.scripts, i2i.script_args = self.script_filter(p)
-        load_model(p._ani2real_original_model_hash)
-        return i2i
-
-    def set_cnet_tile(self, p: StableDiffusionProcessing, cnet, weight, guidance_start, guidance_end):
+    def enable_cnet_tile(self, p: StableDiffusionProcessing, weight, guidance_start, guidance_end, image=None):
+        cnet = find_controlnet()
         tile_model = get_controlnet_tile_model()
         if tile_model:
             tile_units = [cnet.ControlNetUnit(
-                # module = "tile_resample",
                 module = None,
                 model = tile_model,
                 control_mode = cnet.ControlMode.BALANCED,
-                # threshold_a = down_sampling_rate, # Down Sampling Rate
                 weight = weight,
                 guidance_start = guidance_start,
                 guidance_end = guidance_end,
+                image = np.array(image) if image else None
             )]
             cnet.update_cn_script_in_processing(p, tile_units)
 
-    def before_process(self,
+    def process(self,
             p: StableDiffusionProcessing,
             enabled: bool,
             model_name:str,
@@ -241,25 +206,14 @@ class Ani2Real(scripts.Script):
         if not enabled:
             return
         
-        p._ani2real_original_prompt = p.prompt
-        p._ani2real_original_negative_prompt = p.negative_prompt
+        p._ani2real_origin_processing = copy(p)
+        p._ani2real_original_model_hash = p.sd_model.sd_model_hash
 
+        # Apply anime prompt
         if len(prompt) > 0:
             p.prompt = prompt
         if len(negative_prompt) > 0:
             p.negative_prompt = negative_prompt
-
-    def process(self,
-            p: StableDiffusionProcessing,
-            enabled: bool, *args):
-
-        if getattr(p, "_disable_ani2real", False):
-            return
-        
-        if not enabled:
-            return
-        
-        p._ani2real_original_model_hash = p.sd_model.sd_model_hash
 
     def process_batch(self,
             p: StableDiffusionProcessing,
@@ -271,6 +225,16 @@ class Ani2Real(scripts.Script):
 
         if not enabled:
             return
+
+        # Disable HR
+        if isinstance(p, StableDiffusionProcessingTxt2Img):
+            p.enable_hr = False
+        elif isinstance(p, StableDiffusionProcessingImg2Img):
+            p.resize_mode = 0
+            p.width = p.init_images[p.iteration].width
+            p.height = p.init_images[p.iteration].height
+        else:
+            raise RuntimeError("Unsupport processing type")
 
         load_model(model_name)
 
@@ -295,17 +259,15 @@ class Ani2Real(scripts.Script):
         if not cnet:
             return
 
-        p._ani2real_idx = getattr(p, "_ani2real_idx", -1) + 1
-        origin = pp.image
-        i2i = self.get_tile_i2i(p, origin)
-        self.set_cnet_tile(i2i, cnet, weight, guidance_start, guidance_end)
-        processed = process_images(i2i)
+        tile_p = self.get_tile_processing(p, pp.image, weight, guidance_start, guidance_end)
+        load_model(p._ani2real_original_model_hash)
+        processed = process_images(tile_p)
         if processed is not None:
             pp.image = processed.images[0]
-            p._ani2real_origin = origin
+            p._ani2real_anime_image = pp.image
 
     def postprocess(self, p: StableDiffusionProcessing, processed: Processed, *args):
-        if len(processed.images) == 1 and getattr(p, "_ani2real_origin", None):
+        if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None):
             processed.images.extend([
-                p._ani2real_origin
+                p._ani2real_anime_image
             ])
