@@ -6,7 +6,7 @@ from PIL import Image
 import numpy as np
 
 import modules.scripts as scripts
-from modules import shared, sd_models, ui
+from modules import shared, sd_models, ui, images
 from modules.ui_components import ToolButton
 from modules.processing import process_images, create_infotext, StableDiffusionProcessing, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img, Processed
 from modules.ui import create_refresh_button
@@ -135,8 +135,13 @@ class Ani2Real(scripts.Script):
                     maximum=1.0,
                     interactive=True,
                 )
-
-        return [enabled, ani2real_model_name, prompt, negative_prompt, weight, guidance_start, guidance_end]
+            with gr.Row():
+                save_anime_image = gr.Checkbox(
+                    label="Save Anime Image",
+                    value=False,
+                    visible=True,
+                )
+        return [enabled, ani2real_model_name, prompt, negative_prompt, weight, guidance_start, guidance_end, save_anime_image]
 
     def get_seed(self, p, idx):
         if not p.all_seeds:
@@ -178,6 +183,7 @@ class Ani2Real(scripts.Script):
             self.enable_cnet_tile(tile_processing, weight, guidance_start, guidance_end)
         else:
             raise RuntimeError("Unsupport processing type")
+
         return tile_processing
 
     def enable_cnet_tile(self, p: StableDiffusionProcessing, weight, guidance_start, guidance_end, image=None):
@@ -249,7 +255,7 @@ class Ani2Real(scripts.Script):
             model_name:str,
             prompt: str,
             negative_prompt: str,
-            weight, guidance_start, guidance_end):
+            weight, guidance_start, guidance_end, save_anime_image):
 
         if getattr(p, "_disable_ani2real", False):
             return
@@ -267,7 +273,13 @@ class Ani2Real(scripts.Script):
         processed = process_images(tile_p)
         if processed is not None:
             p._ani2real_anime_image = pp.image
-            p._ani2real_anime_infotext = infotext(p, p.batch_index)
+            info = infotext(p, p.batch_index)
+            p._ani2real_anime_infotext = info
+
+            if save_anime_image:
+                images.save_image(pp.image, p.outpath_samples, "",
+                    tile_p.seed, tile_p.prompt, opts.samples_format, info=info, p=p)
+
             pp.image = processed.images[0]
 
     def postprocess(self, p: StableDiffusionProcessing, processed: Processed, *args):
