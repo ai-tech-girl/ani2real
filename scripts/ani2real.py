@@ -8,7 +8,7 @@ import numpy as np
 import modules.scripts as scripts
 from modules import shared, sd_models, ui
 from modules.ui_components import ToolButton
-from modules.processing import process_images, StableDiffusionProcessing, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img, Processed
+from modules.processing import process_images, create_infotext, StableDiffusionProcessing, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img, Processed
 from modules.ui import create_refresh_button
 from modules.paths import models_path
 from modules.shared import opts
@@ -59,6 +59,9 @@ def load_model(model_name: str):
     if info is None:
         raise RuntimeError(f"Unknown checkpoint: {model_name}")
     sd_models.reload_model_weights(info=info)
+
+def infotext(p, index=0, use_main_prompt=False):
+    return create_infotext(p, p.prompts, p.seeds, p.subseeds, use_main_prompt=use_main_prompt, index=index, all_negative_prompts=p.negative_prompts)
 
 class Ani2Real(scripts.Script):
     def __init__(self):
@@ -264,10 +267,14 @@ class Ani2Real(scripts.Script):
         processed = process_images(tile_p)
         if processed is not None:
             p._ani2real_anime_image = pp.image
+            p._ani2real_anime_infotext = infotext(p, p.batch_index)
             pp.image = processed.images[0]
 
     def postprocess(self, p: StableDiffusionProcessing, processed: Processed, *args):
-        if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None):
+        if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None) and getattr(p, "_ani2real_anime_infotext", None):
             processed.images.extend([
                 p._ani2real_anime_image
+            ])
+            processed.infotexts.extend([
+                p._ani2real_anime_infotext
             ])
