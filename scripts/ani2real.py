@@ -263,8 +263,8 @@ class Ani2Real(scripts.Script):
         load_model(p._ani2real_original_model_hash)
         processed = process_images(tile_p)
         if processed is not None:
-            pp.image = processed.images[0]
             p._ani2real_anime_image = pp.image
+            pp.image = processed.images[0]
 
     def postprocess(self, p: StableDiffusionProcessing, processed: Processed, *args):
         if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None):
