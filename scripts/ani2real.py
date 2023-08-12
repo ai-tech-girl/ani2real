@@ -211,7 +211,7 @@ class Ani2Real(scripts.Script):
         
         if getattr(p, "_disable_ani2real", False):
             return
-        
+
         if not enabled:
             return
         
@@ -290,3 +290,5 @@ class Ani2Real(scripts.Script):
             processed.infotexts.extend([
                 p._ani2real_anime_infotext
             ])
+        if getattr(p, "_ani2real_original_model_hash", None):
+            load_model(p._ani2real_original_model_hash)
