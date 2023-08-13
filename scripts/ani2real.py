@@ -6,9 +6,9 @@ from PIL import Image
 import numpy as np
 
 import modules.scripts as scripts
-from modules import shared, sd_models, ui, images
+from modules import shared, sd_models, ui, images, generation_parameters_copypaste, sd_samplers_common
 from modules.ui_components import ToolButton
-from modules.processing import process_images, create_infotext, StableDiffusionProcessing, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img, Processed
+from modules.processing import process_images, program_version, StableDiffusionProcessing, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img, Processed
 from modules.ui import create_refresh_button
 from modules.paths import models_path
 from modules.shared import opts
@@ -60,8 +60,58 @@ def load_model(model_name: str):
         raise RuntimeError(f"Unknown checkpoint: {model_name}")
     sd_models.reload_model_weights(info=info)
 
-def infotext(p, index=0, use_main_prompt=False):
-    return create_infotext(p, p.prompts, p.seeds, p.subseeds, use_main_prompt=use_main_prompt, index=index, all_negative_prompts=p.negative_prompts)
+def create_infotext(p, checkpoint_info, all_prompts, all_seeds, all_subseeds, comments=None, iteration=0, position_in_batch=0, use_main_prompt=False, index=None, all_negative_prompts=None):
+    if index is None:
+        index = position_in_batch + iteration * p.batch_size
+
+    if all_negative_prompts is None:
+        all_negative_prompts = p.all_negative_prompts
+
+    clip_skip = getattr(p, 'clip_skip', opts.CLIP_stop_at_last_layers)
+    enable_hr = getattr(p, 'enable_hr', False)
+    token_merging_ratio = p.get_token_merging_ratio()
+    token_merging_ratio_hr = p.get_token_merging_ratio(for_hr=True)
+
+    uses_ensd = opts.eta_noise_seed_delta != 0
+    if uses_ensd:
+        uses_ensd = sd_samplers_common.is_sampler_using_eta_noise_seed_delta(p)
+
+    generation_params = {
+        "Steps": p.steps,
+        "Sampler": p.sampler_name,
+        "CFG scale": p.cfg_scale,
+        "Image CFG scale": getattr(p, 'image_cfg_scale', None),
+        "Seed": p.all_seeds[0] if use_main_prompt else all_seeds[index],
+        "Face restoration": (opts.face_restoration_model if p.restore_faces else None),
+        "Size": f"{p.width}x{p.height}",
+        "Model hash": checkpoint_info.hash,
+        "Model": checkpoint_info.name_for_extra,
+        "Variation seed": (None if p.subseed_strength == 0 else (p.all_subseeds[0] if use_main_prompt else all_subseeds[index])),
+        "Variation seed strength": (None if p.subseed_strength == 0 else p.subseed_strength),
+        "Seed resize from": (None if p.seed_resize_from_w <= 0 or p.seed_resize_from_h <= 0 else f"{p.seed_resize_from_w}x{p.seed_resize_from_h}"),
+        "Denoising strength": getattr(p, 'denoising_strength', None),
+        "Conditional mask weight": getattr(p, "inpainting_mask_weight", shared.opts.inpainting_mask_weight) if p.is_using_inpainting_conditioning else None,
+        "Clip skip": None if clip_skip <= 1 else clip_skip,
+        "ENSD": opts.eta_noise_seed_delta if uses_ensd else None,
+        "Token merging ratio": None if token_merging_ratio == 0 else token_merging_ratio,
+        "Token merging ratio hr": None if not enable_hr or token_merging_ratio_hr == 0 else token_merging_ratio_hr,
+        "Init image hash": getattr(p, 'init_img_hash', None),
+        "RNG": opts.randn_source if opts.randn_source != "GPU" else None,
+        "NGMS": None if p.s_min_uncond == 0 else p.s_min_uncond,
+        **p.extra_generation_params,
+        "Version": program_version() if opts.add_version_to_infotext else None,
+        "User": p.user if opts.add_user_name_to_info else None,
+    }
+
+    generation_params_text = ", ".join([k if k == v else f'{k}: {generation_parameters_copypaste.quote(v)}' for k, v in generation_params.items() if v is not None])
+
+    prompt_text = p.prompt if use_main_prompt else all_prompts[index]
+    negative_prompt_text = f"\nNegative prompt: {all_negative_prompts[index]}" if all_negative_prompts[index] else ""
+
+    return f"{prompt_text}{negative_prompt_text}\n{generation_params_text}".strip()
+
+def infotext(p, checkpoint_info, index=0, use_main_prompt=False):
+    return create_infotext(p, checkpoint_info, p.prompts, p.seeds, p.subseeds, use_main_prompt=use_main_prompt, index=index, all_negative_prompts=p.negative_prompts)
 
 class Ani2Real(scripts.Script):
     def __init__(self):
@@ -78,7 +128,7 @@ class Ani2Real(scripts.Script):
             with gr.Row():
                 enabled = gr.Checkbox(
                     label="Enabled",
-                    value=False,
+                    value=True,
                     visible=True,
                     elem_id="ani2real_enabled",
                 )
@@ -124,6 +174,7 @@ class Ani2Real(scripts.Script):
                     minimum=0.0,
                     maximum=2.0,
                     step=0.05,
+                    interactive=True,
                     elem_id="ani2real_control_weight",
                 )
                 guidance_start = gr.Slider(
@@ -131,6 +182,7 @@ class Ani2Real(scripts.Script):
                     value=0,
                     minimum=0.0,
                     maximum=1.0,
+                    interactive=True,
                     elem_id="ani2real_guidance_start",
                 )
                 guidance_end = gr.Slider(
@@ -138,6 +190,7 @@ class Ani2Real(scripts.Script):
                     value=0.5,
                     minimum=0.0,
                     maximum=1.0,
+                    interactive=True,
                     elem_id="ani2real_ending_control_step",
                 )
             with gr.Row():
@@ -177,8 +230,8 @@ class Ani2Real(scripts.Script):
         tile_processing.subseed = subseed
         tile_processing.batch_size = 1
         tile_processing.n_iter = 1
-        tile_processing.do_not_save_samples = True
-        tile_processing.do_not_save_grid = True
+        # tile_processing.do_not_save_samples = True
+        # tile_processing.do_not_save_grid = True
         tile_processing.cached_c = [None, None]
         tile_processing.cached_uc = [None, None]
 
@@ -189,6 +242,7 @@ class Ani2Real(scripts.Script):
             self.enable_cnet_tile(tile_processing, weight, guidance_start, guidance_end)
         else:
             raise RuntimeError("Unsupport processing type")
+        tile_processing.override_settings['sd_model_checkpoint'] = p._ani2real_original_checkpoint_info
 
         return tile_processing
 
@@ -213,6 +267,7 @@ class Ani2Real(scripts.Script):
             model_name:str,
             prompt: str,
             negative_prompt: str,
+            weight, guidance_start, guidance_end, save_anime_image,
             *args):
         
         if getattr(p, "_disable_ani2real", False):
@@ -222,7 +277,7 @@ class Ani2Real(scripts.Script):
             return
         
         p._ani2real_origin_processing = copy(p)
-        p._ani2real_original_model_hash = p.sd_model.sd_model_hash
+        p._ani2real_original_checkpoint_info = p.sd_model.sd_checkpoint_info.name
 
         # Apply anime prompt
         if len(prompt) > 0:
@@ -239,6 +294,10 @@ class Ani2Real(scripts.Script):
             p.height = p.init_images[0].height
         else:
             raise RuntimeError("Unsupport processing type")
+
+        p.do_not_save_grid = True
+        p.do_not_save_samples = True
+        p.override_settings['sd_model_checkpoint'] = model_name
 
     def process_batch(self,
             p: StableDiffusionProcessing,
@@ -274,27 +333,27 @@ class Ani2Real(scripts.Script):
         if not cnet:
             return
 
+        checkpoint_info = sd_models.get_closet_checkpoint_match(model_name)
+
+        if save_anime_image:
+            text = infotext(p, checkpoint_info)
+            if opts.enable_pnginfo:
+                pp.image.info["parameters"] = text
+            images.save_image(pp.image, p.outpath_samples, "", p.seeds[p.batch_index], p.prompts[p.batch_index], opts.samples_format, info=text, p=p)
+            p._ani2real_infotext = text
+
         tile_p = self.get_tile_processing(p, pp.image, weight, guidance_start, guidance_end)
-        load_model(p._ani2real_original_model_hash)
         processed = process_images(tile_p)
         if processed is not None:
-            p._ani2real_anime_image = pp.image
-            info = infotext(p, p.batch_index)
-            p._ani2real_anime_infotext = info
-
-            if save_anime_image:
-                images.save_image(pp.image, p.outpath_samples, "",
-                    tile_p.seed, tile_p.prompt, opts.samples_format, info=info, p=p)
-
-            pp.image = processed.images[0]
+            p._ani2real_anime_image = processed.images[0]
 
     def postprocess(self, p: StableDiffusionProcessing, processed: Processed, *args):
-        if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None) and getattr(p, "_ani2real_anime_infotext", None):
+        if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None) and getattr(p, "_ani2real_infotext", None):
             processed.images.extend([
                 p._ani2real_anime_image
             ])
             processed.infotexts.extend([
-                p._ani2real_anime_infotext
+                p._ani2real_infotext
             ])
-        if getattr(p, "_ani2real_original_model_hash", None):
-            load_model(p._ani2real_original_model_hash)
+        if getattr(p, "_ani2real_original_checkpoint_info", None):
+            load_model(p._ani2real_original_checkpoint_info)
