@@ -201,7 +201,7 @@ class Ani2Real(scripts.Script):
             )]
             cnet.update_cn_script_in_processing(p, tile_units)
 
-    def process(self,
+    def before_process(self,
             p: StableDiffusionProcessing,
             enabled: bool,
             model_name:str,
