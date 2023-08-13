@@ -80,26 +80,30 @@ class Ani2Real(scripts.Script):
                     label="Enabled",
                     value=False,
                     visible=True,
+                    elem_id="ani2real_enabled",
                 )
             with gr.Row():
-                ani2real_model_name = gr.Dropdown(sd_models.checkpoint_tiles(), value=getattr(opts, "sd_model_checkpoint", sd_models.checkpoint_tiles()[0]), label="Anime checkpoint", interactive=True)
+                ani2real_model_name = gr.Dropdown(sd_models.checkpoint_tiles(), value=getattr(opts, "sd_model_checkpoint", sd_models.checkpoint_tiles()[0]), label="Anime checkpoint", interactive=True,
+                                                  elem_id="ani2real_checkpoint")
                 create_refresh_button(ani2real_model_name, sd_models.list_models,lambda: {"choices": sd_models.checkpoint_tiles()}, "refresh_ani2real_models")
             with gr.Row():
                 prompt = gr.Textbox(
                     show_label=False,
                     lines=3,
                     placeholder="Anime prompt"
-                    + "\nIf blank, the main prompt is used."
+                    + "\nIf blank, the main prompt is used.",
+                    elem_id="ani2real_prompt",
                 )
             with gr.Row():
                 negative_prompt = gr.Textbox(
                     show_label=False,
                     lines=2,
                     placeholder="Anime negative prompt"
-                    + "\nIf blank, the main prompt is used."
+                    + "\nIf blank, the main prompt is used.",
+                    elem_id="ani2real_negative_prompt",
                 )
             with gr.Row():
-                styles = gr.Dropdown(label="Styles", choices=[k for k, v in shared.prompt_styles.styles.items()], value=[], multiselect=True)
+                styles = gr.Dropdown(label="Styles", choices=[k for k, v in shared.prompt_styles.styles.items()], value=[], multiselect=True, elem_id="ani2real_styles")
                 apply_button = ToolButton(value=ui.apply_style_symbol, elem_id="apply_ani2real_styles")
 
                 def apply_styles(prompt, negative_prompt, styles):
@@ -120,26 +124,28 @@ class Ani2Real(scripts.Script):
                     minimum=0.0,
                     maximum=2.0,
                     step=0.05,
+                    elem_id="ani2real_control_weight",
                 )
                 guidance_start = gr.Slider(
                     label="Starting Control Step",
                     value=0,
                     minimum=0.0,
                     maximum=1.0,
-                    interactive=True,
+                    elem_id="ani2real_guidance_start",
                 )
                 guidance_end = gr.Slider(
                     label="Ending Control Step",
                     value=0.5,
                     minimum=0.0,
                     maximum=1.0,
-                    interactive=True,
+                    elem_id="ani2real_ending_control_step",
                 )
             with gr.Row():
                 save_anime_image = gr.Checkbox(
                     label="Save Anime Image",
                     value=False,
                     visible=True,
+                    elem_id="ani2real_save_anime_image",
                 )
         return [enabled, ani2real_model_name, prompt, negative_prompt, weight, guidance_start, guidance_end, save_anime_image]
 
