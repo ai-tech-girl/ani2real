@@ -154,6 +154,16 @@ class Ani2Real(scripts.Script):
                 )
             with gr.Row():
                 styles = gr.Dropdown(label="Styles", choices=[k for k, v in shared.prompt_styles.styles.items()], value=[], multiselect=True, elem_id="ani2real_styles")
+                clear_prompt_button = ToolButton(value=ui.clear_prompt_symbol, elem_id=f"apply_ani2real_clear_prompt")
+
+                def clear_prompt():
+                    return [gr.Textbox.update(value=""), gr.Textbox.update(value="")]
+
+                clear_prompt_button.click(
+                    fn=clear_prompt,
+                    inputs=[],
+                    outputs=[prompt, negative_prompt]
+                )
                 apply_button = ToolButton(value=ui.apply_style_symbol, elem_id="apply_ani2real_styles")
 
                 def apply_styles(prompt, negative_prompt, styles):
