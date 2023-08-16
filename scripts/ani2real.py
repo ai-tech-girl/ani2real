@@ -210,6 +210,17 @@ class Ani2Real(scripts.Script):
                     visible=True,
                     elem_id="ani2real_save_anime_image",
                 )
+
+        self.infotext_fields = [
+            (enabled, "Ani2Real Enabled"),
+            (ani2real_model_name, "Ani2Real Model"),
+            (prompt, "Ani2Real Prompt"),
+            (negative_prompt, "Ani2Real Negative Prompt"),
+            (weight, "Ani2Real Weight"),
+            (guidance_start, "Ani2Real Guidance Start"),
+            (guidance_end, "Ani2Real Guidance End"),
+        ]
+
         return [enabled, ani2real_model_name, prompt, negative_prompt, weight, guidance_start, guidance_end, save_anime_image]
 
     def get_seed(self, p, idx):
