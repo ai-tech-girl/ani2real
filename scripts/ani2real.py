@@ -349,6 +349,9 @@ class Ani2Real(scripts.Script):
         if not enabled:
             return
 
+        if shared.state.interrupted or shared.state.skipped:
+            return
+
         cnet = find_controlnet()
 
         if not cnet:
@@ -356,25 +359,30 @@ class Ani2Real(scripts.Script):
 
         checkpoint_info = sd_models.get_closet_checkpoint_match(model_name)
 
+        text = infotext(p, checkpoint_info)
+        p._ani2real_infotext = text
+
         if save_anime_image:
-            text = infotext(p, checkpoint_info)
             if opts.enable_pnginfo:
                 pp.image.info["parameters"] = text
             images.save_image(pp.image, p.outpath_samples, "", p.seeds[p.batch_index], p.prompts[p.batch_index], opts.samples_format, info=text, p=p)
-            p._ani2real_infotext = text
 
         tile_p = self.get_tile_processing(p, pp.image, weight, guidance_start, guidance_end)
         processed = process_images(tile_p)
         if processed is not None:
-            p._ani2real_anime_image = processed.images[0]
+            # p._ani2real_anime_image = processed.images[0]
+            print('prompt', processed.all_prompts)
+            pp.image = processed.images[0]
+            p.prompts[p.batch_index] = processed.all_prompts[0]
+            p.all_negative_prompts[p.batch_index] = processed.all_negative_prompts[0]
 
     def postprocess(self, p: StableDiffusionProcessing, processed: Processed, *args):
-        if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None) and getattr(p, "_ani2real_infotext", None):
-            processed.images.extend([
-                p._ani2real_anime_image
-            ])
-            processed.infotexts.extend([
-                p._ani2real_infotext
-            ])
+        # if len(processed.images) == 1 and getattr(p, "_ani2real_anime_image", None) and getattr(p, "_ani2real_infotext", None):
+        #     processed.images.extend([
+        #         p._ani2real_anime_image
+        #     ])
+        #     processed.infotexts.extend([
+        #         p._ani2real_infotext
+        #     ])
         if getattr(p, "_ani2real_original_checkpoint_info", None):
             load_model(p._ani2real_original_checkpoint_info)
