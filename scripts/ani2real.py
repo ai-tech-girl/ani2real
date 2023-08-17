@@ -133,8 +133,16 @@ class Ani2Real(scripts.Script):
                     elem_id="ani2real_enabled",
                 )
             with gr.Row():
-                ani2real_model_name = gr.Dropdown(sd_models.checkpoint_tiles(), value=getattr(opts, "sd_model_checkpoint", sd_models.checkpoint_tiles()[0]), label="Anime model", interactive=True,
+                ani2real_model_name = gr.Dropdown(sd_models.checkpoint_tiles(), value=lambda: getattr(opts, "ani2real_checkpoint", getattr(opts, "sd_model_checkpoint", sd_models.checkpoint_tiles()[0])), label="Anime model", interactive=True,
                                                   elem_id="ani2real_checkpoint")
+                def on_change_model(model_name):
+                    opts.set('ani2real_checkpoint', model_name)
+                    opts.save(shared.config_filename)
+                ani2real_model_name.change(
+                    fn=on_change_model,
+                    inputs=[ani2real_model_name],
+                    outputs=[]
+                )
                 create_refresh_button(ani2real_model_name, sd_models.list_models,lambda: {"choices": sd_models.checkpoint_tiles()}, "refresh_ani2real_models")
             with gr.Row():
                 prompt = gr.Textbox(
@@ -221,7 +229,10 @@ class Ani2Real(scripts.Script):
             (guidance_end, "Ani2Real Guidance End"),
         ]
 
-        return [enabled, ani2real_model_name, prompt, negative_prompt, weight, guidance_start, guidance_end, save_anime_image]
+        elements = [enabled, ani2real_model_name, prompt, negative_prompt, weight, guidance_start, guidance_end, save_anime_image]
+        for e in elements:
+            setattr(e, "do_not_save_to_config", True)
+        return elements
 
     def get_seed(self, p, idx):
         if not p.all_seeds:
@@ -400,3 +411,20 @@ class Ani2Real(scripts.Script):
             ])
         if getattr(p, "_ani2real_original_checkpoint_info", None):
             load_model(p._ani2real_original_checkpoint_info)
+
+def on_ui_settings():
+    section = ("Ani2Real", "Ani2Real")
+    shared.opts.add_option(
+        "ani2real_checkpoint",
+        shared.OptionInfo(
+            default=getattr(opts, "sd_model_checkpoint", sd_models.checkpoint_tiles()[0]),
+            label="Default model",
+            component=gr.Dropdown,
+            component_args={
+                "choices": sd_models.checkpoint_tiles()
+            },
+            section=section,
+        ),
+    )
+
+script_callbacks.on_ui_settings(on_ui_settings)
