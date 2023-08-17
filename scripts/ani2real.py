@@ -401,6 +401,7 @@ class Ani2Real(scripts.Script):
             raise RuntimeError("Unsupport processing type")
 
         p.override_settings['sd_model_checkpoint'] = ani2real_model_name
+        p.override_settings_restore_afterwards = True
         extra_params = [
             (enabled, "Ani2Real Enabled"),
             (ani2real_model_name, "Ani2Real Model"),
@@ -486,8 +487,6 @@ class Ani2Real(scripts.Script):
             processed.infotexts.extend([
                 p._ani2real_ani_infotext
             ])
-        if getattr(p, "_ani2real_original_checkpoint_info", None):
-            load_model(p._ani2real_original_checkpoint_info)
 
 def on_ui_settings():
     section = ("Ani2Real", "Ani2Real")
