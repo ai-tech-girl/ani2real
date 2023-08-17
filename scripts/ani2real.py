@@ -60,6 +60,52 @@ def load_model(model_name: str):
         raise RuntimeError(f"Unknown checkpoint: {model_name}")
     sd_models.reload_model_weights(info=info)
 
+preprocessor_sliders_config = {
+    "none": [],
+    "tile_resample": [
+        {
+            "label": "Down Sampling Rate",
+            "value": 1.0,
+            "minimum": 1.0,
+            "maximum": 8.0,
+            "step": 0.01,
+            "visible": True,
+            "interactive": True
+        }
+    ],
+    "tile_colorfix": [
+        {
+            "label": "Variation",
+            "value": 8.0,
+            "minimum": 3.0,
+            "maximum": 32.0,
+            "step": 1.0,
+            "visible": True,
+            "interactive": True
+        }
+    ],
+    "tile_colorfix+sharp": [
+        {
+            "label": "Variation",
+            "value": 8.0,
+            "minimum": 3.0,
+            "maximum": 32.0,
+            "step": 1.0,
+            "visible": True,
+            "interactive": True
+        },
+        {
+            "label": "Sharpness",
+            "value": 1.0,
+            "minimum": 0.0,
+            "maximum": 2.0,
+            "step": 0.01,
+            "visible": True,
+            "interactive": True
+        }
+    ]
+}
+
 def create_infotext(p, checkpoint_info, all_prompts, all_seeds, all_subseeds, comments=None, iteration=0, position_in_batch=0, use_main_prompt=False, index=None, all_negative_prompts=None):
     if index is None:
         index = position_in_batch + iteration * p.batch_size
@@ -186,6 +232,26 @@ class Ani2Real(scripts.Script):
                 )
                 create_refresh_button(styles, shared.prompt_styles.reload, lambda: {"choices": [k for k, v in shared.prompt_styles.styles.items()]}, "refresh_ani2real_styles")
             with gr.Row():
+                preprocessor = gr.Dropdown(label="ControlNet Preprocessor", choices=preprocessor_sliders_config.keys(), value="none", elem_id="ani2real_preprocessor")
+            with gr.Row():
+                threshold_a = gr.Slider(visible=False)
+                threshold_b = gr.Slider(visible=False)
+
+            def on_change_preprocessor(value):
+                sliders_config = preprocessor_sliders_config[value]
+                if len(sliders_config) == 0:
+                    return [gr.update(visible=False), gr.update(visible=False)]
+                elif len(sliders_config) == 1:
+                    return [gr.update(**(sliders_config[0])), gr.update(visible=False)]
+                else:
+                    return [gr.update(**(sliders_config[0])), gr.update(**(sliders_config[1]))]
+
+            preprocessor.change(
+                fn=on_change_preprocessor,
+                inputs=[preprocessor],
+                outputs=[threshold_a, threshold_b]
+            )
+            with gr.Row():
                 weight = gr.Slider(
                     label=f"Control Weight",
                     value=0.4,
@@ -224,12 +290,15 @@ class Ani2Real(scripts.Script):
             (ani2real_model_name, "Ani2Real Model"),
             (prompt, "Ani2Real Prompt"),
             (negative_prompt, "Ani2Real Negative Prompt"),
+            (preprocessor, "Ani2Real Preprocessor"),
+            (threshold_a, "Ani2Real Threshold A"),
+            (threshold_b, "Ani2Real Threshold B"),
             (weight, "Ani2Real Weight"),
             (guidance_start, "Ani2Real Guidance Start"),
             (guidance_end, "Ani2Real Guidance End"),
         ]
 
-        elements = [enabled, ani2real_model_name, prompt, negative_prompt, weight, guidance_start, guidance_end, save_anime_image]
+        elements = [enabled, ani2real_model_name, prompt, negative_prompt, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end, save_anime_image]
         for e in elements:
             setattr(e, "do_not_save_to_config", True)
         return elements
@@ -253,7 +322,7 @@ class Ani2Real(scripts.Script):
 
         return seed, subseed
 
-    def get_tile_processing(self, p: StableDiffusionProcessing, image: Image, weight, guidance_start, guidance_end):
+    def get_tile_processing(self, p: StableDiffusionProcessing, image: Image, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end):
         p._ani2real_idx = getattr(p, "_ani2real_idx", -1) + 1
         seed, subseed = self.get_seed(p, p._ani2real_idx)
         tile_processing = copy(p._ani2real_origin_processing)
@@ -269,22 +338,24 @@ class Ani2Real(scripts.Script):
         tile_processing.extra_generation_params = {}
 
         if isinstance(tile_processing, StableDiffusionProcessingTxt2Img):
-            self.enable_cnet_tile(tile_processing, weight, guidance_start, guidance_end, image)
+            self.enable_cnet_tile(tile_processing, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end, image)
         elif isinstance(tile_processing, StableDiffusionProcessingImg2Img):
             tile_processing.init_images = [image]
-            self.enable_cnet_tile(tile_processing, weight, guidance_start, guidance_end)
+            self.enable_cnet_tile(tile_processing, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end)
         else:
             raise RuntimeError("Unsupport processing type")
         tile_processing.override_settings['sd_model_checkpoint'] = p._ani2real_original_checkpoint_info
 
         return tile_processing
 
-    def enable_cnet_tile(self, p: StableDiffusionProcessing, weight, guidance_start, guidance_end, image=None):
+    def enable_cnet_tile(self, p: StableDiffusionProcessing, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end, image=None):
         cnet = find_controlnet()
         tile_model = get_controlnet_tile_model()
         if tile_model:
             tile_units = [cnet.ControlNetUnit(
-                module = None,
+                module = preprocessor,
+                threshold_a = threshold_a,
+                threshold_b = threshold_b,
                 model = tile_model,
                 control_mode = cnet.ControlMode.BALANCED,
                 weight = weight,
@@ -300,6 +371,8 @@ class Ani2Real(scripts.Script):
             ani2real_model_name: str,
             prompt: str,
             negative_prompt: str,
+            preprocessor: str,
+            threshold_a, threshold_b,
             weight, guidance_start, guidance_end, save_anime_image,
             *args):
         
@@ -334,6 +407,9 @@ class Ani2Real(scripts.Script):
             (ani2real_model_name, "Ani2Real Model"),
             (prompt, "Ani2Real Prompt"),
             (negative_prompt, "Ani2Real Negative Prompt"),
+            (preprocessor, "Ani2Real Preprocessor"),
+            (threshold_a, "Ani2Real Threshold A"),
+            (threshold_b, "Ani2Real Threshold B"),
             (weight, "Ani2Real Weight"),
             (guidance_start, "Ani2Real Guidance Start"),
             (guidance_end, "Ani2Real Guidance End"),
@@ -366,6 +442,8 @@ class Ani2Real(scripts.Script):
             model_name:str,
             prompt: str,
             negative_prompt: str,
+            preprocessor: str,
+            threshold_a, threshold_b,
             weight, guidance_start, guidance_end, save_anime_image):
 
         if getattr(p, "_disable_ani2real", False):
@@ -394,7 +472,7 @@ class Ani2Real(scripts.Script):
                 pp.image.info["parameters"] = text
             images.save_image(pp.image, p.outpath_samples, "", p.seeds[p.batch_index], p.prompts[p.batch_index], opts.samples_format, info=text, p=p)
 
-        tile_p = self.get_tile_processing(p, pp.image, weight, guidance_start, guidance_end)
+        tile_p = self.get_tile_processing(p, pp.image, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end)
         processed = process_images(tile_p)
         if processed is not None:
             pp.image = processed.images[0]
