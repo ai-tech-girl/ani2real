@@ -178,6 +178,12 @@ class Ani2Real(scripts.Script):
                     visible=True,
                     elem_id="ani2real_enabled",
                 )
+                save_anime_image = gr.Checkbox(
+                    label="Save Anime Image",
+                    value=False,
+                    visible=True,
+                    elem_id="ani2real_save_anime_image",
+                )
             with gr.Row():
                 ani2real_model_name = gr.Dropdown(sd_models.checkpoint_tiles(), value=lambda: getattr(opts, "ani2real_checkpoint", getattr(opts, "sd_model_checkpoint", sd_models.checkpoint_tiles()[0])), label="Anime model", interactive=True,
                                                   elem_id="ani2real_checkpoint")
@@ -276,13 +282,6 @@ class Ani2Real(scripts.Script):
                     maximum=1.0,
                     interactive=True,
                     elem_id="ani2real_ending_control_step",
-                )
-            with gr.Row():
-                save_anime_image = gr.Checkbox(
-                    label="Save Anime Image",
-                    value=False,
-                    visible=True,
-                    elem_id="ani2real_save_anime_image",
                 )
 
         self.infotext_fields = [
