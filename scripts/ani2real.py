@@ -251,10 +251,11 @@ class Ani2Real(scripts.Script):
         tile_processing.subseed = subseed
         tile_processing.batch_size = 1
         tile_processing.n_iter = 1
-        # tile_processing.do_not_save_samples = True
-        # tile_processing.do_not_save_grid = True
+        tile_processing.do_not_save_samples = True
+        tile_processing.do_not_save_grid = True
         tile_processing.cached_c = [None, None]
         tile_processing.cached_uc = [None, None]
+        tile_processing.extra_generation_params = {}
 
         if isinstance(tile_processing, StableDiffusionProcessingTxt2Img):
             self.enable_cnet_tile(tile_processing, weight, guidance_start, guidance_end, image)
@@ -285,7 +286,7 @@ class Ani2Real(scripts.Script):
     def before_process(self,
             p: StableDiffusionProcessing,
             enabled: bool,
-            model_name:str,
+            ani2real_model_name:str,
             prompt: str,
             negative_prompt: str,
             weight, guidance_start, guidance_end, save_anime_image,
@@ -316,9 +317,18 @@ class Ani2Real(scripts.Script):
         else:
             raise RuntimeError("Unsupport processing type")
 
-        p.do_not_save_grid = True
-        p.do_not_save_samples = True
-        p.override_settings['sd_model_checkpoint'] = model_name
+        p.override_settings['sd_model_checkpoint'] = ani2real_model_name
+        extra_params = [
+            (enabled, "Ani2Real Enabled"),
+            (ani2real_model_name, "Ani2Real Model"),
+            (prompt, "Ani2Real Prompt"),
+            (negative_prompt, "Ani2Real Negative Prompt"),
+            (weight, "Ani2Real Weight"),
+            (guidance_start, "Ani2Real Guidance Start"),
+            (guidance_end, "Ani2Real Guidance End"),
+        ]
+        for value, key in extra_params:
+            p.extra_generation_params[key] = value
 
     def process_batch(self,
             p: StableDiffusionProcessing,
