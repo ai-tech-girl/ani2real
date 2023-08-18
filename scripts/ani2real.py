@@ -343,7 +343,6 @@ class Ani2Real(scripts.Script):
             self.enable_cnet_tile(tile_processing, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end)
         else:
             raise RuntimeError("Unsupport processing type")
-        tile_processing.override_settings['sd_model_checkpoint'] = p._ani2real_original_checkpoint_info
 
         return tile_processing
 
@@ -400,8 +399,6 @@ class Ani2Real(scripts.Script):
         else:
             raise RuntimeError("Unsupport processing type")
 
-        p.override_settings['sd_model_checkpoint'] = ani2real_model_name
-        p.override_settings_restore_afterwards = True
         extra_params = [
             (enabled, "Ani2Real Enabled"),
             (ani2real_model_name, "Ani2Real Model"),
@@ -489,8 +486,9 @@ class Ani2Real(scripts.Script):
             processed.infotexts.extend([
                 p._ani2real_ani_infotext
             ])
-        # Revert checkpoint
-        load_model(p._ani2real_original_checkpoint_info)
+        if getattr(p, "_ani2real_original_checkpoint_info", None):
+            # Revert checkpoint
+            load_model(p._ani2real_original_checkpoint_info)
 
 def on_ui_settings():
     section = ("Ani2Real", "Ani2Real")
