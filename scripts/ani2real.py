@@ -343,6 +343,7 @@ class Ani2Real(scripts.Script):
             self.enable_cnet_tile(tile_processing, preprocessor, threshold_a, threshold_b, weight, guidance_start, guidance_end)
         else:
             raise RuntimeError("Unsupport processing type")
+        tile_processing.override_settings['sd_model_checkpoint'] = p._ani2real_original_checkpoint_info
 
         return tile_processing
 
@@ -381,7 +382,13 @@ class Ani2Real(scripts.Script):
             return
 
         p._ani2real_origin_processing = copy(p)
-        p._ani2real_original_checkpoint_info = p.sd_model.sd_checkpoint_info.name
+
+        sd_model_checkpoint = getattr(shared.opts, "sd_model_checkpoint", None)
+        if sd_model_checkpoint and not p.sd_model.sd_checkpoint_info.name in sd_model_checkpoint:
+            print(f'Config model and loaded model are dirrerent: {sd_model_checkpoint}, {p.sd_model.sd_checkpoint_info.name}. Use config: {sd_model_checkpoint}')
+            p._ani2real_original_checkpoint_info = sd_model_checkpoint
+        else:
+            p._ani2real_original_checkpoint_info = p.sd_model.sd_checkpoint_info.name
 
         # Apply anime prompt
         if len(prompt) > 0:
@@ -399,6 +406,8 @@ class Ani2Real(scripts.Script):
         else:
             raise RuntimeError("Unsupport processing type")
 
+        p.override_settings['sd_model_checkpoint'] = ani2real_model_name
+        p.override_settings_restore_afterwards = True
         extra_params = [
             (enabled, "Ani2Real Enabled"),
             (ani2real_model_name, "Ani2Real Model"),
