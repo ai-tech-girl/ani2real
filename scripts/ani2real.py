@@ -171,6 +171,8 @@ class Ani2Real(scripts.Script):
 
     def ui(self, is_img2img):
         with gr.Accordion("Ani2Real", open=False):
+            dummy_component = gr.Label(visible=False)
+
             with gr.Row():
                 enabled = gr.Checkbox(
                     label="Enabled",
@@ -214,6 +216,8 @@ class Ani2Real(scripts.Script):
                 )
             with gr.Row():
                 styles = gr.Dropdown(label="Styles", choices=[k for k, v in shared.prompt_styles.styles.items()], value=[], multiselect=True, elem_id="ani2real_styles")
+                create_refresh_button(styles, shared.prompt_styles.reload, lambda: {"choices": [k for k, v in shared.prompt_styles.styles.items()]}, "refresh_ani2real_styles")
+
                 clear_prompt_button = ToolButton(value=ui.clear_prompt_symbol, elem_id=f"apply_ani2real_clear_prompt")
 
                 def clear_prompt():
@@ -226,17 +230,19 @@ class Ani2Real(scripts.Script):
                 )
                 apply_button = ToolButton(value=ui.apply_style_symbol, elem_id="apply_ani2real_styles")
 
-                def apply_styles(prompt, negative_prompt, styles):
-                    prompt = shared.prompt_styles.apply_styles_to_prompt(prompt, styles)
-                    negative_prompt = shared.prompt_styles.apply_negative_styles_to_prompt(negative_prompt, styles)
-                    return [gr.Textbox.update(value=prompt), gr.Textbox.update(value=negative_prompt), gr.Dropdown.update(value=[])]
-
                 apply_button.click(
-                    fn=apply_styles,
+                    fn=ui.apply_styles,
                     inputs=[prompt, negative_prompt, styles],
                     outputs=[prompt, negative_prompt, styles],
                 )
-                create_refresh_button(styles, shared.prompt_styles.reload, lambda: {"choices": [k for k, v in shared.prompt_styles.styles.items()]}, "refresh_ani2real_styles")
+
+                save_style = ToolButton(value=ui.save_style_symbol, elem_id=f"ani2real_style_create")
+                save_style.click(
+                    fn=ui.add_style,
+                    _js="ask_for_style_name",
+                    inputs=[dummy_component, prompt, negative_prompt],
+                    outputs=[styles, styles],
+                )
             with gr.Row():
                 preprocessor = gr.Dropdown(label="ControlNet Preprocessor", choices=preprocessor_sliders_config.keys(), value="none", elem_id="ani2real_preprocessor")
             with gr.Row():
