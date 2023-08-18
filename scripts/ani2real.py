@@ -453,6 +453,8 @@ class Ani2Real(scripts.Script):
             return
 
         if shared.state.interrupted or shared.state.skipped:
+            # Revert checkpoint
+            load_model(p._ani2real_original_checkpoint_info)
             return
 
         cnet = find_controlnet()
@@ -487,6 +489,8 @@ class Ani2Real(scripts.Script):
             processed.infotexts.extend([
                 p._ani2real_ani_infotext
             ])
+        # Revert checkpoint
+        load_model(p._ani2real_original_checkpoint_info)
 
 def on_ui_settings():
     section = ("Ani2Real", "Ani2Real")
