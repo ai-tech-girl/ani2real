@@ -2,6 +2,11 @@
 
 This is an extension for switching checkpoints and performing controlnet's tile in stable diffusion webui.
 
+## Requirements
+
+- stable-diffusion-webui >= 1.4.0
+- sd-webui-controlnet >= 1.1
+
 ## Install
 
 At first, This extension requires `sd-webui-controlnet`.  
