@@ -388,6 +388,7 @@ class Ani2Real(scripts.Script):
             return
 
         p._ani2real_origin_processing = copy(p)
+        p._disable_adetailer = True
 
         sd_model_checkpoint = getattr(shared.opts, "sd_model_checkpoint", None)
         if sd_model_checkpoint and not p.sd_model.sd_checkpoint_info.name in sd_model_checkpoint:

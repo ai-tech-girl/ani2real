@@ -22,6 +22,8 @@ Please install it if you've not yet. see https://github.com/Mikubill/sd-webui-co
 - **Preprocessing**: The checkpoint selected by the `Anime model` is used for the initial processing.
 - **Post-processing**: The image generated using the checkpoint from preprocessing and Main is processed by Controlnet tile.
 - **Hires** is applied only to post-processing.
+- **Adetailer** is applied only to post-processing.
+- **Controlnet** that you specified is applied to preprocessing.
 - Other plugins might be applied to both preprocessing and post-processing.
 - The prompt can be changed for both preprocessing and post-processing.
 
