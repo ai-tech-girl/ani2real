@@ -14,7 +14,7 @@ Please install it if you've not yet. see https://github.com/Mikubill/sd-webui-co
 
 1. Open "Extensions" tab.
 2. Open "Install from URL" tab in the tab.
-3. Enter https://github.com/ai-tech-girl/ani2real.git to "URL for extension's git repository".
+3. Enter https://github.com/ai-tech-girl/z_ani2real.git to "URL for extension's git repository".
 4. Press "Install" button.
 
 ## Specifications
