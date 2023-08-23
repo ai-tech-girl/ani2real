@@ -521,3 +521,6 @@ def on_ui_settings():
     )
 
 script_callbacks.on_ui_settings(on_ui_settings)
+
+if not hasattr(scripts.Script, 'before_process'):
+    raise RuntimeError('Ani2Real required stable-diffusion-webui >= 1.4.0')
