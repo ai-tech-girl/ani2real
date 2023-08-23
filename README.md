@@ -16,3 +16,15 @@ Please install it if you've not yet. see https://github.com/Mikubill/sd-webui-co
 2. Open "Install from URL" tab in the tab.
 3. Enter https://github.com/ai-tech-girl/ani2real.git to "URL for extension's git repository".
 4. Press "Install" button.
+
+## Specifications
+
+- **Preprocessing**: The checkpoint selected by the `Anime model` is used for the initial processing.
+- **Post-processing**: The image generated using the checkpoint from preprocessing and Main is processed by Controlnet tile.
+- **Hires** is applied only to post-processing.
+- Other plugins might be applied to both preprocessing and post-processing.
+- The prompt can be changed for both preprocessing and post-processing.
+
+## Limitations
+
+- Because of the need to switch between two checkpoints, processing will be slower.
